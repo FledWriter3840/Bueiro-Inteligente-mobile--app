@@ -1,13 +1,17 @@
 import { StyleSheet, Text, View } from 'react-native';
 
-export function ErrorBanner({ mensagem }: { mensagem?: string | null }) {
+export function ErrorBanner({
+  mensagem,
+  titulo = 'Dados desatualizados: sem conexão com o servidor',
+}: {
+  mensagem?: string | null;
+  titulo?: string;
+}) {
   if (!mensagem) return null;
 
   return (
     <View accessibilityRole="alert" style={styles.container}>
-      <Text style={styles.titulo}>
-        Dados desatualizados: sem conexão com o servidor
-      </Text>
+      <Text style={styles.titulo}>{titulo}</Text>
       <Text style={styles.detalhe}>{mensagem}</Text>
     </View>
   );

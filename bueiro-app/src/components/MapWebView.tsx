@@ -5,7 +5,7 @@ import WebView, {
   WebViewProps,
 } from 'react-native-webview';
 
-import { Bueiro, Ocorrencia } from '../services/api';
+import { Bueiro, Ocorrencia, Previsao } from '../services/api';
 import { cores } from '../constants/theme';
 
 const MAPA_HTML = `<!doctype html>
@@ -18,10 +18,12 @@ const MAPA_HTML = `<!doctype html>
     html, body, #mapa { height: 100%; margin: 0; width: 100%; }
     .detalhe { font: 14px sans-serif; min-width: 150px; }
     .detalhe button { background: #146c50; border: 0; border-radius: 6px; color: white; margin-top: 8px; padding: 8px 10px; }
+    .risco { background: white; border: 1px solid #d8e3d8; border-radius: 8px; color: #26352d; font: 600 13px sans-serif; left: 10px; padding: 9px 12px; position: absolute; top: 10px; z-index: 1000; }
   </style>
 </head>
 <body>
   <div id="mapa"></div>
+  <div id="risco" class="risco" hidden></div>
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script>
     const mapa = L.map('mapa').setView([-23.5505, -46.6333], 12);
@@ -30,10 +32,15 @@ const MAPA_HTML = `<!doctype html>
       attribution: '&copy; OpenStreetMap',
     }).addTo(mapa);
     const marcadores = L.layerGroup().addTo(mapa);
+    const camadaLocalizacao = L.layerGroup().addTo(mapa);
     const cores = { livre: '#228b5a', atencao: '#d98716', critico: '#c83f3f' };
+    const coresRisco = { baixo: '#228b5a', moderado: '#d98716', alto: '#c83f3f' };
+    const rotulosRisco = { baixo: 'Baixo', moderado: 'Moderado', alto: 'Alto' };
+    let centralizadoNaLocalizacao = false;
 
     window.setMapData = function(dados) {
       marcadores.clearLayers();
+      camadaLocalizacao.clearLayers();
       (dados.bueiros || []).forEach((bueiro) => {
         const marcador = L.circleMarker([bueiro.latitude, bueiro.longitude], {
           radius: 9,
@@ -80,6 +87,43 @@ const MAPA_HTML = `<!doctype html>
         popup.append(titulo, descricao);
         marcador.bindPopup(popup);
       });
+
+      const indicadorRisco = document.getElementById('risco');
+      if (dados.localizacao) {
+        const coordenadas = [dados.localizacao.latitude, dados.localizacao.longitude];
+        const corRisco = coresRisco[dados.risco] || '#66756d';
+        const textoRisco = rotulosRisco[dados.risco] || 'indisponível';
+        indicadorRisco.hidden = false;
+        indicadorRisco.textContent = dados.carregandoRisco
+          ? 'Consultando risco...'
+          : 'Risco estimado (bueiro próximo): ' + textoRisco;
+
+        L.circle(coordenadas, {
+          radius: dados.raioRiscoMetros,
+          color: corRisco,
+          weight: 2,
+          fillColor: corRisco,
+          fillOpacity: 0.2,
+        })
+          .bindPopup('Risco estimado pelo bueiro próximo: ' + textoRisco)
+          .addTo(camadaLocalizacao);
+        L.circleMarker(coordenadas, {
+          radius: 7,
+          color: '#ffffff',
+          weight: 2,
+          fillColor: '#146caa',
+          fillOpacity: 1,
+        })
+          .bindPopup('Sua localização')
+          .addTo(camadaLocalizacao);
+
+        if (!centralizadoNaLocalizacao) {
+          mapa.setView(coordenadas, 15);
+          centralizadoNaLocalizacao = true;
+        }
+      } else {
+        indicadorRisco.hidden = true;
+      }
     };
   </script>
 </body>
@@ -90,19 +134,37 @@ interface MensagemMapa {
   id: number;
 }
 
+interface LocalizacaoMapa {
+  latitude: number;
+  longitude: number;
+}
+
 export function MapWebView({
   bueiros,
   ocorrencias,
+  localizacao,
+  risco,
+  carregandoRisco,
   aoAbrirBueiro,
 }: {
   bueiros: Bueiro[];
   ocorrencias: Ocorrencia[];
+  localizacao: LocalizacaoMapa | null;
+  risco: Previsao['risco'] | null;
+  carregandoRisco: boolean;
   aoAbrirBueiro: (id: number) => void;
 }) {
   const mapaRef = useRef<WebView<WebViewProps>>(null);
   const [carregado, setCarregado] = useState(false);
   const [erro, setErro] = useState(false);
-  const dados = { bueiros, ocorrencias };
+  const dados = {
+    bueiros,
+    ocorrencias,
+    localizacao,
+    risco,
+    carregandoRisco,
+    raioRiscoMetros: 500,
+  };
 
   useEffect(() => {
     if (!carregado) return;
@@ -110,7 +172,7 @@ export function MapWebView({
     mapaRef.current?.injectJavaScript(
       `window.setMapData(${payload}); true;`,
     );
-  }, [carregado, bueiros, ocorrencias]);
+  }, [carregado, bueiros, ocorrencias, localizacao, risco, carregandoRisco]);
 
   function receberMensagem(evento: WebViewMessageEvent) {
     try {
