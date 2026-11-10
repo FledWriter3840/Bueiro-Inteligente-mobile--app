@@ -28,5 +28,9 @@ carregar os tiles. O app oferece mapa, lista, detalhe, resumo, localização e
 fotos opcionais na denúncia, cache/offline, polling e alertas locais. Push
 remoto não é suportado pelo Expo Go no Android.
 
+Para contexto técnico, arquitetura, contratos da API e orientações para
+desenvolvimento com outras pessoas ou IAs, consulte
+[CONTEXTO.md](./CONTEXTO.md).
+
 As instruções de inicialização e o simulador estão no
 [README do repositório do TCC](https://github.com/FledWriter3840/Bueiro-Inteligente-IoT-TCC).
